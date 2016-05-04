@@ -18,7 +18,7 @@ setup(
     author='Eric Pascual',
     author_email='eric@pobot.org',
     url='http://www.pobot.org',
-    install_requires=['pybot-core'],
+    install_requires=['pybot-core', 'spidev'],
     download_url='https://github.com/Pobot/PyBot',
     packages=find_packages("src"),
     package_dir={'': 'src'},
