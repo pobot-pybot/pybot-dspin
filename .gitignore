@@ -3,4 +3,4 @@ dist/
 *.egg-info
 src/pybot_dspin.egg-info
 build
-docs/_build
+RELEASE-VERSION
