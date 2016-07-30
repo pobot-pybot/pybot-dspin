@@ -4,3 +4,4 @@ dist/
 src/pybot_dspin.egg-info
 build
 RELEASE-VERSION
+fabfile.py
