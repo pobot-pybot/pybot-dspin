@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 
 from setuptools import setup, find_packages
-from git_version import git_version
 
 import textwrap
 
 setup(
     name='pybot-dspin',
     namespace_packages=['pybot'],
-    version=git_version(),
+    setup_requires=['setuptools_scm'],
+    use_scm_version=True,
     description='STMicro dSPIN stepper smart driver interface',
     license='LGPL',
     long_description=textwrap.dedent("""
