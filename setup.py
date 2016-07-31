@@ -8,9 +8,7 @@ setup(
     name='pybot-dspin',
     namespace_packages=['pybot'],
     setup_requires=['setuptools_scm'],
-    use_scm_version={
-        'version_scheme': 'post-release'
-    },
+    use_scm_version=True,
     description='STMicro dSPIN stepper smart driver interface',
     license='LGPL',
     long_description=textwrap.dedent("""
