@@ -12,8 +12,8 @@ try:
 except ImportError:
     # import a dummy module simulating the real API so that
     # IDEs can help us
-    import fake_gpio as GPIO
     pkg_log.warn("not running on a RasPi")
+    import fake_gpio as GPIO
     real_raspi = False
 
 
