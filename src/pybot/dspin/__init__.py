@@ -9,7 +9,7 @@ try:
     import RPi.GPIO as GPIO
     real_raspi = True
 
-except ImportError:
+except (ImportError, RuntimeError):
     # import a dummy module simulating the real API so that
     # IDEs can help us
     pkg_log.warn("not running on a RasPi")
