@@ -197,50 +197,50 @@ class DaisyChain(DSPIN):
         ]
         self._xfer(requests)
 
-    def move(self, directions, steps_s, wait=True, wait_cb=None):
-        self.logger.debug('move(%s, %s, %s, %s)...', directions, steps_s, wait, wait_cb)
+    def move(self, directions, steps_s, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('move(%s, %s, %s, %s, %d)...', directions, steps_s, wait, wait_cb, timeout)
         requests = [
             commands.Move(d, s).as_request() if (d is not None and s is not None) else commands.NOP_4_REQUEST
             for d, s in zip(directions, steps_s)
         ]
         self._xfer(requests)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
-    def goto(self, positions, wait=True, wait_cb=None):
-        self.logger.debug('goto(%s, %s, %s)...', positions, wait, wait_cb)
+    def goto(self, positions, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('goto(%s, %s, %s, %d)...', positions, wait, wait_cb, timeout)
         requests = [
             commands.GoTo(p).as_request() if p is not None else commands.NOP_4_REQUEST
             for p in positions
         ]
         self._xfer(requests)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
-    def goto_dir(self, directions, positions, wait=True, wait_cb=None):
-        self.logger.debug('goto_dir(%s, %s, %s, %s)...', directions, positions, wait, wait_cb)
+    def goto_dir(self, directions, positions, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('goto_dir(%s, %s, %s, %s, %d)...', directions, positions, wait, wait_cb, timeout)
         requests = [
             commands.GoToDir(d, p).as_request() if d is not None and p is not None else commands.NOP_4_REQUEST
             for d, p in zip(directions, positions)
         ]
         self._xfer(requests)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
-    def go_home(self, dist_list=None, wait=True, wait_cb=None):
-        self.logger.debug('go_home(%s, %s, %s)...', dist_list, wait, wait_cb)
+    def go_home(self, dist_list=None, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('go_home(%s, %s, %s, %d)...', dist_list, wait, wait_cb, timeout)
         self.send_command(commands.GO_HOME, dist_list=dist_list)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
-    def go_mark(self, dist_list=None, wait=True, wait_cb=None):
-        self.logger.debug('go_mark(%s, %s, %s)...', dist_list, wait, wait_cb)
+    def go_mark(self, dist_list=None, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('go_mark(%s, %s, %s, %d)...', dist_list, wait, wait_cb)
         self.send_command(commands.GO_MARK, dist_list=dist_list)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
-    def go_until(self, actions, directions, speeds, wait=True, wait_cb=None):
-        self.logger.debug('go_until(%s, %s, %s, %s, %s)...', actions, directions, speeds, wait, wait_cb)
+    def go_until(self, actions, directions, speeds, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('go_until(%s, %s, %s, %s, %s, %d)...', actions, directions, speeds, wait, wait_cb, timeout)
         requests = [
             commands.GoUntil(a, d, s).as_request()
             if a is not None and d is not None and s is not None else commands.NOP_4_REQUEST
@@ -248,17 +248,17 @@ class DaisyChain(DSPIN):
         ]
         self._xfer(requests)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
-    def release_sw(self, actions, directions, wait=True, wait_cb=None):
-        self.logger.debug('release_sw(%s, %s, %s, %s)...', actions, directions, wait, wait_cb)
+    def release_sw(self, actions, directions, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('release_sw(%s, %s, %s, %s, %d)...', actions, directions, wait, wait_cb, timeout)
         requests = [
             commands.ReleaseSW(a, d) if a is not None and d is not None else commands.NOP_4_REQUEST
             for a, d in zip(actions, directions)
         ]
         self._xfer(requests)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
     def clear_status(self, dist_list=None):
         self.logger.debug('clear_status(%s)...', dist_list)
@@ -272,11 +272,11 @@ class DaisyChain(DSPIN):
         self.logger.debug('reset_device(%s)...', dist_list)
         self.send_command(commands.RESET_DEVICE, dist_list=dist_list)
 
-    def soft_stop(self, dist_list=None, wait=True, wait_cb=None):
-        self.logger.debug('soft_stop(%s, %s, %s)...', dist_list, wait, wait_cb)
+    def soft_stop(self, dist_list=None, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('soft_stop(%s, %s, %s, %d)...', dist_list, wait, wait_cb, timeout)
         self.send_command(commands.SOFT_STOP, dist_list=dist_list)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
 
     def hard_stop(self, dist_list=None):
         self.logger.debug('hard_stop(%s)...', dist_list)
@@ -286,8 +286,8 @@ class DaisyChain(DSPIN):
         self.logger.debug('hard_hi_Z(%s)...', dist_list)
         self.send_command(commands.HARD_HIZ, dist_list=dist_list)
 
-    def soft_hi_Z(self, dist_list=None, wait=True, wait_cb=None):
-        self.logger.debug('soft_hi_Z(%s, %s, %s)...', dist_list, wait, wait_cb)
+    def soft_hi_Z(self, dist_list=None, wait=True, wait_cb=None, timeout=DSPIN.DEFAULT_MOVE_TIMEOUT):
+        self.logger.debug('soft_hi_Z(%s, %s, %s, %d)...', dist_list, wait, wait_cb, timeout)
         self.send_command(commands.SOFT_HIZ, dist_list=dist_list)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(callback=wait_cb, timeout=timeout)
