@@ -36,7 +36,7 @@ class DSPinSpiDev(spidev.SpiDev):
         self.mode = 3
         self.max_speed_hz = self._max_speed
 
-        self.log.debug("SPI open done (bus=%d device=%d)", self._bus, self._dev)
+        self.log.info("SPI open done (bus=%d device=%d)", self._bus, self._dev)
 
     def xfer(self, values=None):
         """ Send data, toggling CS for each byte.
@@ -77,12 +77,15 @@ class DSPinSpiDev(spidev.SpiDev):
 class DSPIN(object):
     """ Model of the dSPIN module.
     """
-    def __init__(self, spi, standby_pin, busyn_pin, switch_pin=None):
+    DEFAULT_MOVE_TIMEOUT = 30       # seconds
+
+    def __init__(self, spi, standby_pin, busyn_pin, switch_pin=None, logger=None):
         """
         :param DSPinSpiDev spi: the SPI device instance, which can be shared by several dSPINs
         :param int standby_pin: GPIO number of the standby signal
         :param int busyn_pin: GPIO number of the busy signal
         :param int switch_pin: GPIO number of the switch input signal
+        :param logger: optional logger. If None, a new one will be created
         """
         if not spi:
             raise ValueError('spi parameter missing')
@@ -91,19 +94,19 @@ class DSPIN(object):
         self._standby_pin = standby_pin
         self._busyn_pin = busyn_pin
         self._switch_pin = switch_pin
-        self.log = pkg_log.getChild(self.__class__.__name__)
+        self.logger = logger or pkg_log.getChild(self.__class__.__name__)
 
     def power_on_reset(self):
         """ Performs initializations which are supposed to be done
         once for all the devices.
         """
         GPIO.setup(self._standby_pin, GPIO.OUT)
-        self.log.debug('GPIO.OUT reset setup ok')
+        self.logger.debug('GPIO.OUT reset setup ok')
         GPIO.setup(self._busyn_pin, GPIO.IN)
-        self.log.debug('GPIO.IN busy setup ok')
+        self.logger.debug('GPIO.IN busy setup ok')
         if self._switch_pin is not None:
             GPIO.setup(self._switch_pin, GPIO.IN)
-            self.log.debug('GPIO.IN switch setup ok')
+            self.logger.debug('GPIO.IN switch setup ok')
 
         self._spi.open()
 
@@ -115,7 +118,7 @@ class DSPIN(object):
 
     def check_initial_config(self):
         config = self.CONFIG
-        self.log.debug('config: 0x%x', config)
+        self.logger.debug('config: 0x%x', config)
         return config == Register.CONFIG.reset_value
 
     def prepare(self):
@@ -127,7 +130,7 @@ class DSPIN(object):
         # Note that the access to the CONFIG register being made using GetStatus
         # function, it will reset the error flags at the same time, UVO among others.
         if not self.check_initial_config():
-            self.log.error('reset sequence failed')
+            self.logger.error('reset sequence failed')
             return False
 
         # ensure HiZ, since configuration is not modifiable otherwise
@@ -136,7 +139,7 @@ class DSPIN(object):
         # clear UVLO flag (forced high on POR)
         self.clear_status()
 
-        self.log.info('reset sequence complete')
+        self.logger.info('reset sequence complete')
         return True
 
     def initialize(self):
@@ -189,12 +192,12 @@ class DSPIN(object):
         :param reg: the register to be read, as one of the Register.XXXX predefined values.
         :return: the register value
         """
-        if self.log.getEffectiveLevel() == log.DEBUG:
-            self.log.debug('DSPIN.read_register(%s)...', reg.name)
+        if self.logger.getEffectiveLevel() == log.DEBUG:
+            self.logger.debug('DSPIN.read_register(%s)...', reg.name)
         value_bytes = self._xfer(commands.GetParam(reg).as_request())[1:]
         result = self.parse_register_reply(reg, value_bytes)
-        if self.log.getEffectiveLevel() == log.DEBUG:
-            self.log.debug(' -> 0x%x', result)
+        if self.logger.getEffectiveLevel() == log.DEBUG:
+            self.logger.debug(' -> 0x%x', result)
         return result
 
     def parse_register_reply(self, reg, value_bytes):
@@ -214,8 +217,8 @@ class DSPIN(object):
         :param reg: the register to be written, as one of the Register.XXXX predefined values.
         :param int value: the value to be written
         """
-        if self.log.getEffectiveLevel() == log.DEBUG:
-            self.log.debug('write_register(%s, 0x%x)', reg.name, value)
+        if self.logger.getEffectiveLevel() == log.DEBUG:
+            self.logger.debug('write_register(%s, 0x%x)', reg.name, value)
         self._xfer(commands.SetParam(reg, value).as_request())
 
     @staticmethod
@@ -288,7 +291,7 @@ class DSPIN(object):
         :param f_pwm_int: F_PWM_INT field value
         """
         config = Configuration(osc_sel, sw_mode, en_vscomp, oc_sd, pow_sr, f_pwm_dec, f_pwm_int)
-        self.log.debug('set_config(0x%x) %s', config.value, config)
+        self.logger.debug('set_config(0x%x) %s', config.value, config)
         self.CONFIG = config.value
 
     def get_status(self):
@@ -335,62 +338,67 @@ class DSPIN(object):
         """
         self._spi.xfer(commands.StepClock(direction).as_request())
 
-    def move(self, direction, steps, wait=True, wait_cb=None):
+    def move(self, direction, steps, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Moves a given number of steps from the current position, in the given direction.
 
         :param int direction: one of :py:class:`Direction` predefined values
         :param int steps: number of steps (accounting micro-stepping)
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.Move(direction, steps).as_request())
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
-    def goto(self, position, wait=True, wait_cb=None):
+    def goto(self, position, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Moves to a given absolute position, optimizing the direction.
 
         :param int position: the target position (accounting micro-stepping)
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.GoTo(position).as_request())
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
-    def goto_dir(self, direction, position, wait=True, wait_cb=None):
+    def goto_dir(self, direction, position, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Same as :py:meth:`goto`, but imposing the diection.
 
         :param int direction: one of :py:class:`Direction` predefined values
         :param int position: the target position (accounting micro-stepping)
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.GoToDir(direction, position).as_request())
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
-    def go_home(self, wait=True, wait_cb=None):
+    def go_home(self, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Returns to home position (abs pos = 0), using the shortest path.
 
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.GO_HOME_REQUEST)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
-    def go_mark(self, wait=True, wait_cb=None):
+    def go_mark(self, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Returns to a previously marked position, using the shortest path.
 
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.GO_MARK_REQUEST)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
-    def go_until(self, action, direction, steps_per_sec, wait=True, wait_cb=None):
+    def go_until(self, action, direction, steps_per_sec, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Runs in the given direction, until the switch is closed.
 
         Once there, performs the indicated action.
@@ -400,12 +408,13 @@ class DSPIN(object):
         :param int steps_per_sec: speed in steps/s (accounting micro-stepping)
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.GoUntil(action, direction, steps_per_sec).as_request())
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
-    def release_sw(self, action, direction, wait=True, wait_cb=None):
+    def release_sw(self, action, direction, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Runs in the given direction, until the switch is released.
 
         Once there, performs the indicated action. The move is performed at the currently
@@ -415,10 +424,11 @@ class DSPIN(object):
         :param int direction: one of :py:class:`Direction` predefined values
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.ReleaseSW(action, direction).as_request())
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
     def reset_pos(self):
         """ Resets the absolute position indicator.
@@ -430,30 +440,32 @@ class DSPIN(object):
         """
         self._xfer(commands.RESET_DEVICE_REQUEST)
 
-    def soft_stop(self, wait=True, wait_cb=None):
+    def soft_stop(self, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Performs a soft stop.
 
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.SOFT_STOP_REQUEST)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
     def hard_stop(self):
         """ Performs a hard stop.
         """
         self._xfer(commands.HARD_STOP_REQUEST)
 
-    def soft_hi_Z(self, wait=True, wait_cb=None):
+    def soft_hi_Z(self, wait=True, wait_cb=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Performs a soft stop and puts the bridge in HiZ state.
 
         :param bool wait: wait until the move is finished before returning
         :param wait_cb: an optional callback to be called while waiting
+        :param timeout: the max wait time in seconds
         """
         self._xfer(commands.SOFT_HIZ_REQUEST)
         if wait:
-            self.wait_for_move_complete(wait_cb)
+            self.wait_for_move_complete(wait_cb, timeout=timeout)
 
     def hard_hi_Z(self):
         """ Performs a hard stop and puts the bridge in HiZ state.
@@ -467,28 +479,38 @@ class DSPIN(object):
         """
         return GPIO.input(self._busyn_pin) == GPIO.LOW
 
-    def wait_for_move_complete(self, callback=None):
+    def wait_for_move_complete(self, callback=None, timeout=DEFAULT_MOVE_TIMEOUT):
         """ Waits until the current move is complete.
 
         If provided, the callback will be invoked while executing
         the in the monitoring loop, with the dSPIN instance as argument.
+        It can return `True` for ending the wait.
 
         :param callback: the callback to invoke while waiting
+        :param timeout: the max wait time in seconds
         """
         if hasattr(GPIO, 'FAKE'):
-            self.log.warn('not on a real RasPi => bypassing wait_for_move_complete')
+            self.logger.warn('not on a real RasPi => bypassing wait_for_move_complete')
             return
 
-        # use 2 distinct loops for avoiding testing for the callback
-        # on each iteration and impacting performances
-        self.log.debug('wait_for_move_complete...')
-        if callback:
+        self.logger.info('wait for move completion... (%s callback)', 'with' if callback else 'no')
+        time_limit = time.time() + timeout
+
+        try:
             while GPIO.input(self._busyn_pin) == GPIO.LOW:
-                callback(self)
+                if callback and callback(self):
+                    self.logger.debug('callback returned True')
+                    break
+                if time.time() >= time_limit:
+                    raise CommandTimeOut()
                 time.sleep(0.1)
+
+        except CommandTimeOut:
+            self.logger.error('timeout reached (%d seconds)')
+            raise
+
         else:
-            while GPIO.input(self._busyn_pin) == GPIO.LOW:
-                time.sleep(0.1)
+            self.logger.info('wait complete')
 
     def get_all_registers(self):
         """ Returns the current content of all the registers as a list of tuples (name, value).
@@ -496,6 +518,10 @@ class DSPIN(object):
         :rtype: list
         """
         return [(n, getattr(self, n)) for n in Register.ALL]
+
+
+class CommandTimeOut(Exception):
+    pass
 
 
 def bytes_as_string(data):
