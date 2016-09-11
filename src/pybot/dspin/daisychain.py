@@ -8,11 +8,22 @@ __author__ = 'Eric Pascual'
 
 
 class DaisyChain(DSPIN):
-    def __init__(self, chain_length, spi, standby_pin, busyn_pin):
+    """ This class implements a control interface for several dSPIN chips
+    connected in daisy-chain configuration.
+
+    It uses the same API as the single dPIN one, but deals with arrays instead
+    of scalars for register content type parameters or return values. The position
+    of the arrays items matches the position of the associated dSPIN in the chain.
+
+    Apart from the data types of their signature, the function and specification of methods
+    inherited from the superclass are the same. Refer to their documentation for
+    detail.
+    """
+    def __init__(self, chain_length, spi, standby_pin, busyn_pin, logger):
         if chain_length <= 1:
             raise ValueError('chain length must be > 1')
 
-        super(DaisyChain, self).__init__(spi, standby_pin, busyn_pin)
+        super(DaisyChain, self).__init__(spi, standby_pin, busyn_pin, logger)
 
         self._chain_length = chain_length
 
@@ -20,7 +31,7 @@ class DaisyChain(DSPIN):
         return self._chain_length
 
     def read_register(self, reg):
-        self.log.debug('DaisyChain.read_register(%s)...', reg.name)
+        self.logger.debug('DaisyChain.read_register(%s)...', reg.name)
 
         replies = self._xfer([commands.GetParam(reg).as_request()] * self._chain_length)
 
@@ -28,8 +39,8 @@ class DaisyChain(DSPIN):
             self.parse_register_reply(reg, r[1:])
             for r in replies
         ]
-        if self.log.isEnabledFor(log.DEBUG):
-            self.log.debug(' -> [%s]', bytes_as_string(values))
+        if self.logger.isEnabledFor(log.DEBUG):
+            self.logger.debug(' -> [%s]', bytes_as_string(values))
         return values
 
     def write_register(self, reg, data):
@@ -38,12 +49,12 @@ class DaisyChain(DSPIN):
                 raise ValueError('data length mismatch')
         except TypeError:
             # data parameter is a scalar, so we execute a broadcast
-            self.log.debug('write_register(%s, 0x%x)', reg.name, data)
+            self.logger.debug('write_register(%s, 0x%x)', reg.name, data)
             requests = [commands.SetParam(reg, data).as_request()] * self._chain_length
 
         else:
-            if self.log.isEnabledFor(log.DEBUG):
-                self.log.debug('write_register(%s, [%s])', reg.name, values_as_string(data))
+            if self.logger.isEnabledFor(log.DEBUG):
+                self.logger.debug('write_register(%s, [%s])', reg.name, values_as_string(data))
             requests = [
                 commands.SetParam(reg, value).as_request() if value is not None else None
                 for value in data
@@ -144,7 +155,7 @@ class DaisyChain(DSPIN):
         :rtype: tuple
         :raise: ValueError if the parameter tuples contained in the passed dictionary do not have the same size
         """
-        self.log.debug("expand_parameters(%s)", p_dict)
+        self.logger.debug("expand_parameters(%s)", p_dict)
         # take the size of the first parameters tuple as the reference one
         try:
             p_count = len(p_dict.values()[0])
@@ -172,7 +183,7 @@ class DaisyChain(DSPIN):
         return [bool(s & Status.SW_F) for s in self.STATUS]
 
     def run(self, directions, speeds):
-        self.log.debug('run(%s, %s)...', directions, speeds)
+        self.logger.debug('run(%s, %s)...', directions, speeds)
         requests = [
             commands.Run(d, s).as_request() if d is not None and s is not None else commands.NOP_4_REQUEST
             for d, s in zip(directions, speeds)
@@ -187,7 +198,7 @@ class DaisyChain(DSPIN):
         self._xfer(requests)
 
     def move(self, directions, steps_s, wait=True, wait_cb=None):
-        self.log.debug('move(%s, %s, %s, %s)...', directions, steps_s, wait, wait_cb)
+        self.logger.debug('move(%s, %s, %s, %s)...', directions, steps_s, wait, wait_cb)
         requests = [
             commands.Move(d, s).as_request() if (d is not None and s is not None) else commands.NOP_4_REQUEST
             for d, s in zip(directions, steps_s)
@@ -197,7 +208,7 @@ class DaisyChain(DSPIN):
             self.wait_for_move_complete(wait_cb)
 
     def goto(self, positions, wait=True, wait_cb=None):
-        self.log.debug('goto(%s, %s, %s)...', positions, wait, wait_cb)
+        self.logger.debug('goto(%s, %s, %s)...', positions, wait, wait_cb)
         requests = [
             commands.GoTo(p).as_request() if p is not None else commands.NOP_4_REQUEST
             for p in positions
@@ -207,7 +218,7 @@ class DaisyChain(DSPIN):
             self.wait_for_move_complete(wait_cb)
 
     def goto_dir(self, directions, positions, wait=True, wait_cb=None):
-        self.log.debug('goto_dir(%s, %s, %s, %s)...', directions, positions, wait, wait_cb)
+        self.logger.debug('goto_dir(%s, %s, %s, %s)...', directions, positions, wait, wait_cb)
         requests = [
             commands.GoToDir(d, p).as_request() if d is not None and p is not None else commands.NOP_4_REQUEST
             for d, p in zip(directions, positions)
@@ -217,19 +228,19 @@ class DaisyChain(DSPIN):
             self.wait_for_move_complete(wait_cb)
 
     def go_home(self, dist_list=None, wait=True, wait_cb=None):
-        self.log.debug('go_home(%s, %s, %s)...', dist_list, wait, wait_cb)
+        self.logger.debug('go_home(%s, %s, %s)...', dist_list, wait, wait_cb)
         self.send_command(commands.GO_HOME, dist_list=dist_list)
         if wait:
             self.wait_for_move_complete(wait_cb)
 
     def go_mark(self, dist_list=None, wait=True, wait_cb=None):
-        self.log.debug('go_mark(%s, %s, %s)...', dist_list, wait, wait_cb)
+        self.logger.debug('go_mark(%s, %s, %s)...', dist_list, wait, wait_cb)
         self.send_command(commands.GO_MARK, dist_list=dist_list)
         if wait:
             self.wait_for_move_complete(wait_cb)
 
     def go_until(self, actions, directions, speeds, wait=True, wait_cb=None):
-        self.log.debug('go_until(%s, %s, %s, %s, %s)...', actions, directions, speeds, wait, wait_cb)
+        self.logger.debug('go_until(%s, %s, %s, %s, %s)...', actions, directions, speeds, wait, wait_cb)
         requests = [
             commands.GoUntil(a, d, s).as_request()
             if a is not None and d is not None and s is not None else commands.NOP_4_REQUEST
@@ -240,7 +251,7 @@ class DaisyChain(DSPIN):
             self.wait_for_move_complete(wait_cb)
 
     def release_sw(self, actions, directions, wait=True, wait_cb=None):
-        self.log.debug('release_sw(%s, %s, %s, %s)...', actions, directions, wait, wait_cb)
+        self.logger.debug('release_sw(%s, %s, %s, %s)...', actions, directions, wait, wait_cb)
         requests = [
             commands.ReleaseSW(a, d) if a is not None and d is not None else commands.NOP_4_REQUEST
             for a, d in zip(actions, directions)
@@ -250,33 +261,33 @@ class DaisyChain(DSPIN):
             self.wait_for_move_complete(wait_cb)
 
     def clear_status(self, dist_list=None):
-        self.log.debug('clear_status(%s)...', dist_list)
+        self.logger.debug('clear_status(%s)...', dist_list)
         self.send_command(commands.GET_STATUS, dist_list=dist_list)
 
     def reset_pos(self, dist_list=None):
-        self.log.debug('reset_pos(%s)...', dist_list)
+        self.logger.debug('reset_pos(%s)...', dist_list)
         self.send_command(commands.RESET_POS, dist_list=dist_list)
 
     def reset_device(self, dist_list=None):
-        self.log.debug('reset_device(%s)...', dist_list)
+        self.logger.debug('reset_device(%s)...', dist_list)
         self.send_command(commands.RESET_DEVICE, dist_list=dist_list)
 
     def soft_stop(self, dist_list=None, wait=True, wait_cb=None):
-        self.log.debug('soft_stop(%s, %s, %s)...', dist_list, wait, wait_cb)
+        self.logger.debug('soft_stop(%s, %s, %s)...', dist_list, wait, wait_cb)
         self.send_command(commands.SOFT_STOP, dist_list=dist_list)
         if wait:
             self.wait_for_move_complete(wait_cb)
 
     def hard_stop(self, dist_list=None):
-        self.log.debug('hard_stop(%s)...', dist_list)
+        self.logger.debug('hard_stop(%s)...', dist_list)
         self.send_command(commands.HARD_STOP, dist_list=dist_list)
 
     def hard_hi_Z(self, dist_list=None):
-        self.log.debug('hard_hi_Z(%s)...', dist_list)
+        self.logger.debug('hard_hi_Z(%s)...', dist_list)
         self.send_command(commands.HARD_HIZ, dist_list=dist_list)
 
     def soft_hi_Z(self, dist_list=None, wait=True, wait_cb=None):
-        self.log.debug('soft_hi_Z(%s, %s, %s)...', dist_list, wait, wait_cb)
+        self.logger.debug('soft_hi_Z(%s, %s, %s)...', dist_list, wait, wait_cb)
         self.send_command(commands.SOFT_HIZ, dist_list=dist_list)
         if wait:
             self.wait_for_move_complete(wait_cb)
