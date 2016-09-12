@@ -24,7 +24,7 @@ setup(
     package_dir={'': 'src'},
     entry_points={
         'console_scripts': [
-            'dspin-demo = pybot.dspin.demo.MotorDemo:main'
+            'dspin-demo = pybot.dspin.demo:main'
         ]
     }
 )

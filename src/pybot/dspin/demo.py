@@ -228,3 +228,7 @@ class MotorDemo(SingledSPINDemo):
         dspin.KVAL_HOLD = self.kval_hold
 
         dspin.set_lspd_opt(True)
+
+
+def main():
+    MotorDemo.main(use_curses=True)
