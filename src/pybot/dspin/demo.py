@@ -143,7 +143,7 @@ class DSPINDemo(object):
     def main(cls, use_curses=False):
         parser = argparse.ArgumentParser(
             formatter_class=argparse.RawDescriptionHelpFormatter,
-            description=textwrap.dedent(cls.__doc__)
+            description=textwrap.dedent(cls.__doc__ or '')
         )
         parser.add_argument('-D', '--debug', dest='debug', action='store_true', help='activates debug messages')
 
