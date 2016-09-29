@@ -23,7 +23,7 @@ class DaisyChain(DSPIN):
         if chain_length <= 1:
             raise ValueError('chain length must be > 1')
 
-        super(DaisyChain, self).__init__(spi, standby_pin, busyn_pin, logger)
+        super(DaisyChain, self).__init__(spi, standby_pin, busyn_pin, logger=logger)
 
         self._chain_length = chain_length
 
@@ -140,11 +140,11 @@ class DaisyChain(DSPIN):
         Example::
 
             Let's say that a subclass of DaisyChain implements a serial arm with a motorized
-            gripper. Making the gripper close until its end switch it reached can be done with
+            gripper. Making the gripper close until its end switch is reached can be done with
             the following calls, supposing `MOTOR_GRIPPER` is the index of the gripper motor in
             the daisy-chain and `GRIPPER_CLOSE_SPEED` defines its rotation speed for closing.
 
-            parms = chain.expand_parms({
+            parms = chain.expand_parameters({
                 self.MOTOR_GRIPPER: (defs.GoUntilAction.COPY, defs.Direction.FWD, self.GRIPPER_CLOSE_SPEED)
             })
             chain.go_until(*parms)
