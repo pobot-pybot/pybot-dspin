@@ -79,12 +79,11 @@ class DSPIN(object):
     """
     DEFAULT_MOVE_TIMEOUT = 30       # seconds
 
-    def __init__(self, spi, standby_pin, busyn_pin, switch_pin=None, logger=None):
+    def __init__(self, spi, standby_pin, busyn_pin, logger=None):
         """
         :param DSPinSpiDev spi: the SPI device instance, which can be shared by several dSPINs
         :param int standby_pin: GPIO number of the standby signal
         :param int busyn_pin: GPIO number of the busy signal
-        :param int switch_pin: GPIO number of the switch input signal
         :param logger: optional logger. If None, a new one will be created
         """
         if not spi:
@@ -93,7 +92,6 @@ class DSPIN(object):
         self._spi = spi
         self._standby_pin = standby_pin
         self._busyn_pin = busyn_pin
-        self._switch_pin = switch_pin
         self.logger = logger or pkg_log.getChild(self.__class__.__name__)
 
     def power_on_reset(self):
@@ -104,9 +102,6 @@ class DSPIN(object):
         self.logger.debug('GPIO.OUT reset setup ok')
         GPIO.setup(self._busyn_pin, GPIO.IN)
         self.logger.debug('GPIO.IN busy setup ok')
-        if self._switch_pin is not None:
-            GPIO.setup(self._switch_pin, GPIO.IN)
-            self.logger.debug('GPIO.IN switch setup ok')
 
         self._spi.open()
 
